@@ -1,0 +1,7 @@
+subnet,notes
+10.1.125.0/24,test segment: keep it in the scope
+# One row per segment to bridge at SITE-A. Lines starting with # are ignored: remove the # to use a row.
+# A row can name a segment by its subnet or its Blue segment name; a wider range takes every Blue segment inside it.
+# 10.1.30.0/24,example: one segment by its subnet
+# net-10.1.30.0-24,example: the same segment by its Blue name
+# 10.1.64.0/20,example: every Blue segment inside this range

@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+
+# Your config, and what the tool keeps beside it: state, the lock, the run journal,
+# the copy --set and --by-site keep of the old file, the evidence folders
+/env.yaml
+/env.*.yaml
+env*.yaml.*
+migpath_state_*
+migpath_*_*.csv
+switch_requirements.txt
+out/
+
+# What a test run makes: the mocks' certificate and log, the fake switches' world, the flows' configs and waves
+test/*.pem
+test/mock.log
+test/world.json
+test/wave1.csv
+test/env.*.yaml
+!test/env.test.yaml
+!test/env.testw.yaml
+!test/env.bluew.yaml
+!test/env.auto.yaml

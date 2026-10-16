@@ -1,0 +1,5 @@
+vm,subnet,notes
+app01,10.1.20.0/24,
+app02,10.1.20.0/24,
+web01,10.1.20.0/24,
+web02,,subnet is optional: blank skips the subnet check

@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Fake ping (iputils output shape, -O). world["ping"][ip]: {"dead": true} never answers;
+{"drop_from_s": a, "drop_for_s": b} loses the packets sent in that window. Stops on SIGINT
+with the statistics line."""
+import json
+import os
+import signal
+import sys
+import time
+
+ip = sys.argv[-1]
+iv = float(sys.argv[sys.argv.index("-i") + 1]) if "-i" in sys.argv else 1.0
+cnt = int(sys.argv[sys.argv.index("-c") + 1]) if "-c" in sys.argv else None
+try:
+    w = (json.load(open(os.environ.get("FP_TEST_WORLD", ""))).get("ping") or {}).get(ip) or {}
+except Exception:
+    w = {}
+stop = [False]
+signal.signal(signal.SIGINT, lambda *a: stop.__setitem__(0, True))
+print("PING %s (%s) 56(84) bytes of data." % (ip, ip), flush=True)
+seq = got = 0
+t0 = time.time()
+while not stop[0]:
+    seq += 1
+    el = time.time() - t0
+    lost = w.get("dead") or (w.get("drop_from_s") is not None
+                             and w["drop_from_s"] <= el < w["drop_from_s"] + w.get("drop_for_s", 1.0))
+    if lost:
+        print("no answer yet for icmp_seq=%d" % seq, flush=True)
+    else:
+        got += 1
+        print("64 bytes from %s: icmp_seq=%d ttl=64 time=0.21 ms" % (ip, seq), flush=True)
+    if cnt is not None and seq >= cnt:
+        break
+    t_next = t0 + seq * iv
+    while not stop[0] and time.time() < t_next:
+        time.sleep(0.02)
+print("", flush=True)
+print("--- %s ping statistics ---" % ip)
+print("%d packets transmitted, %d received, %d%% packet loss, time %dms"
+      % (seq, got, 100 * (seq - got) // max(seq, 1), int((time.time() - t0) * 1000)), flush=True)
+sys.exit(0 if got else 1)

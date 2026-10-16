@@ -1,0 +1,153 @@
+# env_example.yaml: fleetparity migpath, every site and both sides in one file.
+# Blue: the NSX the segments and VMs leave. Green: the NSX they land on. Keep it chmod 600.
+#   fp  = python3 fleetparity.py migpath --config env_example.yaml                 (SITE-A: site-a)
+#   fp1 = python3 fleetparity.py migpath --config env_example.yaml --site site-b   (SITE-B: site-b)
+# Above sites: only what serves every site (SITE-A, SITE-B): the two Global Managers, how new bridge edges
+# are built. Under sites.<site>: everything of that site, each with its own sign-ins: what to do
+# there, then its Blue, its Green and its leaves. Each password's line names the system it signs in
+# to. Blank: asked for, by name. A name the tool does not know stops the run.
+
+# ==================================================================================== EVERY SITE (SITE-A, SITE-B)
+blue:                                          # Blue's Global Manager: one for every site
+  gm: blue-gm.example.com                      # Blue's Global Manager
+  gm_user: admin
+  gm_password:                                 # blue-gm.example.com. Blank: asked for
+
+green:                                         # Green's Global Manager: one for every site
+  gm: green-gm.example.com                     # Green's active Global Manager
+  gm_user: admin
+  gm_password:                                 # green-gm.example.com. Blank: asked for
+  router_mac: 02:50:56:56:44:72                # --router-mac sets it on every Green Local Manager
+  local_as: 65001                              # Green's Tier-0 AS as the leaves see it (route check)
+
+edges:                                         # how the tool builds new bridge edges, every site
+  domain: example.com                          # DNS domain of the new bridge edges
+  form_factor: MEDIUM
+  deploy_wait: 1800                            # seconds
+
+moves:                                         # vMotion pacing, every site
+  batch: 5                                     # at most this many VMs per --commit; blank: every one listed
+
+sites:
+
+  # ====================================================================================== SITE-A
+  site-a:                                      # SITE-A: every value below is for SITE-A only
+    # ---- SITE-A: what to do
+    scope: [10.1.0.0/16]                       # all, CIDRs, segment names or ids, t1:<Blue Tier-1>
+    skip: []                                   # never bridged
+    move_vms: [app01, web*, segment:10.1.20.0/24, wave1.csv] # names, wildcards (app*), segment:<subnet>, or a wave .csv
+    return_vms: []                             # back to Blue, same forms as move_vms; wins over move_vms
+    cutover_with_blue_vms: false               # false: a subnet cuts over only once all its VMs are on Green
+    blue_writes: false                         # false: Green only. true: Blue's bridges too (change window). test: --test runs only
+    transit_vlans: 3101-3199                   # one per bridged segment, on this site's leaf pair
+    infra_vlans: [110, 220]                    # on the leaves already: never transit
+    probes: [10.1.40.10, 10.1.40.11]           # production addresses pinged across every change
+    test_segments: [10.1.125.0/24]             # what --test acts on: name, id or subnet
+    # ---- SITE-A Blue: the NSX we leave, and its sign-ins
+    blue:
+      location: SITE-A                         # Blue's location on its Global Manager
+      lm:                                      # blank: found on Blue's Global Manager
+      lm_user:
+      vcenter: blue-vc-a.example.com           # the others registered on Blue's Local Manager are read too
+      vc_user: administrator@vsphere.local
+      vc_password:                             # blue-vc-a.example.com and the other vCenters on Blue's Local Manager at SITE-A. Blank: asked for
+      vcenter_remote: blue-vc-b.example.com    # blank: the other site's Blue vCenter
+      cluster:                                 # returned VMs with no recorded origin; blank: that vCenter's only cluster
+      datastore:                               # blank: the datastore all its hosts share
+      bridge:
+        edges: [blue-a-edge30, blue-a-edge31]  # [primary, backup]
+        admin_password:                        # admin on blue-a-edge30, blue-a-edge31. Blank: asked for
+        root_password:                         # root on blue-a-edge30, blue-a-edge31. Blank: asked for
+        vc_password:                           # the vCenter these edges deploy to, when it is not the vcenter above. Blank: asked for
+        ips: [192.0.2.30, 192.0.2.31]          # or DNS A and PTR records
+        cluster: blue-a-bridge-edge-cluster
+        template:                              # blank: an edge in the new edges' management subnet
+        zone: tz-vlan-bridge-blue-a
+        profile: bp-migration-blue-a
+    # ---- SITE-A Green: the NSX we land on, and its sign-ins
+    green:
+      lm:                                      # blank: found on Green's Global Manager
+      lm_user: admin
+      lm_password:                             # Green's Local Manager at SITE-A (found on Green's Global Manager). Blank: asked for
+      tier1: T1-SITE-A                         # the Tier-1 the migrated segments attach to
+      vcenter: green-vc-a.example.com          # where the VMs land
+      vc_user: administrator@vsphere.local
+      vc_password:                             # green-vc-a.example.com. Blank: asked for
+      bridge:
+        edges: [green-a-edge11, green-a-edge12] # [primary, backup]
+        admin_password:                        # admin on green-a-edge11, green-a-edge12. Blank: asked for
+        root_password:                         # root on green-a-edge11, green-a-edge12. Blank: asked for
+        vc_password:                           # the vCenter these edges deploy to, when it is not the vcenter above. Blank: asked for
+        ips: [192.0.2.11, 192.0.2.12]          # or DNS A and PTR records
+        cluster: green-a-bridge-edge-cluster
+        template:                              # blank: an edge in the new edges' management subnet
+        zone: tz-vlan-bridge-a
+        profile: bp-migration-a
+    # ---- SITE-A leaves, and their sign-in
+    leaves:
+      user: cumulus
+      password:                                # leaf-a1, leaf-a2. Blank: asked for
+      bridge: [leaf-a1.example.com, leaf-a2.example.com]
+      route: [leaf-a1.example.com, leaf-a2.example.com]
+      ports: [leaf-a1:swp5, leaf-a1:swp6, leaf-a2:swp5, leaf-a2:swp6] # leaf:port facing every host that can run a bridge edge, both leaves
+
+  # ====================================================================================== SITE-B
+  site-b:                                      # SITE-B: every value below is for SITE-B only
+    # ---- SITE-B: what to do
+    scope: [10.2.125.0/24]                     # all, CIDRs, segment names or ids, t1:<Blue Tier-1>
+    skip: []                                   # never bridged
+    move_vms: []                               # names, wildcards (app*), segment:<subnet>, or a wave .csv
+    return_vms: []                             # back to Blue, same forms as move_vms; wins over move_vms
+    cutover_with_blue_vms: false               # false: a subnet cuts over only once all its VMs are on Green
+    blue_writes: test                          # false: Green only. true: Blue's bridges too (change window). test: --test runs only
+    transit_vlans: 2501-2599                   # one per bridged segment, on this site's leaf pair
+    infra_vlans: []                            # on the leaves already: never transit [set]
+    probes: []                                 # production addresses pinged across every change [set]
+    test_segments: [10.2.125.0/24]             # what --test acts on: name, id or subnet
+    # ---- SITE-B Blue: the NSX we leave, and its sign-ins
+    blue:
+      location: SITE-B                         # Blue's location on its Global Manager
+      lm:                                      # blank: found on Blue's Global Manager
+      lm_user:
+      vcenter: blue-vc-b.example.com           # the others registered on Blue's Local Manager are read too
+      vc_user: administrator@vsphere.local
+      vc_password:                             # blue-vc-b.example.com and the other vCenters on Blue's Local Manager at SITE-B. Blank: asked for
+      vcenter_remote: blue-vc-a.example.com    # blank: the other site's Blue vCenter
+      cluster:                                 # returned VMs with no recorded origin; blank: that vCenter's only cluster
+      datastore:                               # blank: the datastore all its hosts share
+      bridge:
+        edges: [blue-b-edge50, blue-b-edge51]  # [primary, backup]
+        admin_password:                        # admin on blue-b-edge50, blue-b-edge51. Blank: asked for
+        root_password:                         # root on blue-b-edge50, blue-b-edge51. Blank: asked for
+        vc_password:                           # the vCenter these edges deploy to, when it is not the vcenter above. Blank: asked for
+        ips: [198.51.100.50, 198.51.100.51]    # or DNS A and PTR records
+        cluster: blue-b-bridge-edge-cluster
+        template:                              # blank: an edge in the new edges' management subnet
+        zone: tz-vlan-bridge-blue-b
+        profile: bp-migration-blue-b
+    # ---- SITE-B Green: the NSX we land on, and its sign-ins
+    green:
+      lm:                                      # blank: found on Green's Global Manager
+      lm_user: admin
+      lm_password:                             # Green's Local Manager at SITE-B (found on Green's Global Manager). Blank: asked for
+      tier1: T1-SITE-B                         # the Tier-1 the migrated segments attach to
+      vcenter: green-vc-b.example.com          # where the VMs land
+      vc_user: administrator@vsphere.local
+      vc_password:                             # green-vc-b.example.com. Blank: asked for
+      bridge:
+        edges: [green-b-edge11, green-b-edge12] # [primary, backup]
+        admin_password:                        # admin on green-b-edge11, green-b-edge12. Blank: asked for
+        root_password:                         # root on green-b-edge11, green-b-edge12. Blank: asked for
+        vc_password:                           # the vCenter these edges deploy to, when it is not the vcenter above. Blank: asked for
+        ips: [198.51.100.11, 198.51.100.12]    # or DNS A and PTR records
+        cluster: green-b-bridge-edge-cluster
+        template:                              # blank: an edge in the new edges' management subnet
+        zone: tz-vlan-bridge-b
+        profile: bp-migration-b
+    # ---- SITE-B leaves, and their sign-in
+    leaves:
+      user: cumulus
+      password:                                # leaf-b1, leaf-b2. Blank: asked for
+      bridge: [leaf-b1.example.com, leaf-b2.example.com]
+      route: [leaf-b1.example.com, leaf-b2.example.com]
+      ports: []                                # leaf:port facing every host that can run a bridge edge, both leaves [set]
